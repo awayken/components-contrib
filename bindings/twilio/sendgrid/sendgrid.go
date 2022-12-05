@@ -44,6 +44,8 @@ type sendGridMetadata struct {
 	Subject       string `json:"subject"`
 	EmailCc       string `json:"emailCc"`
 	EmailBcc      string `json:"emailBcc"`
+	TemplateId    string `json:"templateId"`
+	DynamicTemplateData   struct `json:"dynamicTemplateData"` // TODO: not sure what this should be
 }
 
 // Wrapper to help decode SendGrid API errors.
@@ -79,6 +81,8 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 	sgMeta.Subject = meta.Properties["subject"]
 	sgMeta.EmailCc = meta.Properties["emailCc"]
 	sgMeta.EmailBcc = meta.Properties["emailBcc"]
+	sgMeta.TemplateId = meta.Properties["templateId"]
+	sgMeta.DynamicTemplateData = meta.Properties["dynamicTemplateData"]
 
 	return sgMeta, nil
 }
@@ -183,6 +187,25 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	if req.Metadata["emailBcc"] != "" {
 		bccAddress = mail.NewEmail("", req.Metadata["emailBcc"])
 	}
+	
+	// Build template id, this is optional
+	templateId := "" // TODO: nullable? string
+	if sg.metadata.TemplateId != "" {
+		templateId = sg.metadata.TemplateId
+	}
+	if req.Metadata["templateId"] != "" {
+		templateId = req.Metadata["templateId"]
+	}
+	
+	// TODO: make this not meta data but part of the request?
+	// Build dynamic template data, this is optional
+	dynamicTemplateData := "" // TODO: nullable? struct of random data?
+	if sg.metadata.DynamicTemplateData != "" {
+		dynamicTemplateData = sg.metadata.DynamicTemplateData
+	}
+	if req.Metadata["dynamicTemplateData"] != "" {
+		dynamicTemplateData = req.Metadata["dynamicTemplateData"]
+	}
 
 	// Email body is held in req.Data, after we tidy it up a bit
 	emailBody, err := strconv.Unquote(string(req.Data))
@@ -205,6 +228,12 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	}
 	if bccAddress != nil {
 		personalization.AddBCCs(bccAddress)
+	}
+	if templateId != nil {
+		personalization.TemplateId = templateId
+	}
+	if dynamicTemplateData != nil {
+		personalization.DynamicTemplateData = dynamicTemplateData
 	}
 	email.AddPersonalizations(personalization)
 
